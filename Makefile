@@ -25,6 +25,7 @@ help:
 	@echo "  make docker-build - Build Docker image"
 	@echo "  make docker-run   - Run API server in Docker"
 	@echo "  make docker-test  - Build and smoke-test Docker image"
+	@echo "  make submit FILE=path/to/submission.csv MSG='description'"
 	@echo "  make mlflow-ui    - Start MLflow UI"
 
 # Installation
@@ -126,6 +127,12 @@ docker-compose-up:
 
 docker-compose-down:
 	docker-compose down
+
+# Kaggle Submit
+FILE ?= output/submissions/submission_cat_eng_kfold.csv
+MSG ?= submission
+submit:
+	kaggle competitions submit -c playground-series-s6e2 -f $(FILE) -m "$(MSG)"
 
 # API
 api:
