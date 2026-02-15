@@ -83,6 +83,13 @@ logs/
 api_key.json
 kaggle.json
 
+# Root symlinks / scratch CSVs
+/train.csv
+/test.csv
+/Heart_Disease_Prediction.csv
+/oof_*.csv
+/submission_*.csv
+
 # Environment variables
 .env
 .env.local

@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format type-check test test-cov test-schema test-api test-stacking train clean docker-build docker-run mlflow-ui validate-data oof-all stacking
+.PHONY: help install install-dev lint format type-check test test-cov test-schema test-api test-stacking check train clean docker-build docker-run docker-test mlflow-ui validate-data oof-all stacking
 
 PYTHON := python3
 PROJECT_NAME := heart-disease-prediction
@@ -21,8 +21,10 @@ help:
 	@echo "  make oof-all      - Generate OOF for cat,xgb,lgbm (for stacking)"
 	@echo "  make stacking     - Run stacking ensemble"
 	@echo "  make clean        - Clean generated files"
+	@echo "  make check        - Run lint + type-check + test (CI equivalent)"
 	@echo "  make docker-build - Build Docker image"
 	@echo "  make docker-run   - Run API server in Docker"
+	@echo "  make docker-test  - Build and smoke-test Docker image"
 	@echo "  make mlflow-ui    - Start MLflow UI"
 
 # Installation
@@ -59,6 +61,9 @@ test-api:
 
 test-stacking:
 	pytest tests/test_stacking.py -v
+
+# CI equivalent: lint + type-check + test
+check: lint type-check test
 
 # Data Validation
 validate-data:
@@ -105,7 +110,16 @@ docker-build:
 	docker build -t $(PROJECT_NAME) .
 
 docker-run:
-	docker run -p 8000:8000 $(PROJECT_NAME)
+	docker run -p 8000:8000 -v ./output/models:/app/output/models:ro $(PROJECT_NAME)
+
+docker-test: docker-build
+	@echo "Smoke-testing Docker image..."
+	@docker run -d --name $(PROJECT_NAME)-test -p 8000:8000 $(PROJECT_NAME) > /dev/null
+	@sleep 3
+	@curl -sf http://localhost:8000/health > /dev/null && echo "✓ /health OK" || echo "✗ /health FAILED"
+	@curl -sf http://localhost:8000/model/info > /dev/null && echo "✓ /model/info OK" || echo "✗ /model/info FAILED"
+	@docker stop $(PROJECT_NAME)-test > /dev/null && docker rm $(PROJECT_NAME)-test > /dev/null
+	@echo "Docker smoke test passed."
 
 docker-compose-up:
 	docker-compose up -d
