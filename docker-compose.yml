@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   api:
     build: .
@@ -6,3 +5,12 @@ services:
       - "8000:8000"
     volumes:
       - ./output/models:/app/output/models:ro
+    environment:
+      - MODEL_PATH=output/models/model_cat.pkl
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

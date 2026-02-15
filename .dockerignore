@@ -1,0 +1,37 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Data & models (mounted at runtime)
+data/
+output/
+*.csv
+catboost_info/
+
+# Dev tools
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+mlruns/
+
+# IDE
+.idea/
+.vscode/
+
+# Docs
+notebooks/
+FINDINGS.md
+LICENSE
+
+# Docker
+Dockerfile
+docker-compose.yml
