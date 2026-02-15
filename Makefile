@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format type-check test test-cov test-schema train clean docker-build docker-run mlflow-ui validate-data
+.PHONY: help install install-dev lint format type-check test test-cov test-schema test-api test-stacking train clean docker-build docker-run mlflow-ui validate-data oof-all stacking
 
 PYTHON := python3
 PROJECT_NAME := heart-disease-prediction
@@ -13,9 +13,13 @@ help:
 	@echo "  make test         - Run tests"
 	@echo "  make test-cov     - Run tests with coverage"
 	@echo "  make test-schema  - Run schema validation tests"
+	@echo "  make test-api     - Run API endpoint tests"
+	@echo "  make test-stacking - Run stacking ensemble tests"
 	@echo "  make validate-data - Validate data files against schema"
 	@echo "  make train        - Train default model (CatBoost)"
 	@echo "  make train-all    - Train all models"
+	@echo "  make oof-all      - Generate OOF for cat,xgb,lgbm (for stacking)"
+	@echo "  make stacking     - Run stacking ensemble"
 	@echo "  make clean        - Clean generated files"
 	@echo "  make docker-build - Build Docker image"
 	@echo "  make docker-run   - Run API server in Docker"
@@ -50,6 +54,12 @@ test-cov:
 test-schema:
 	pytest tests/test_schema.py -v
 
+test-api:
+	pytest tests/test_api.py -v
+
+test-stacking:
+	pytest tests/test_stacking.py -v
+
 # Data Validation
 validate-data:
 	$(PYTHON) -c "import pandas as pd; from src.schema import validate_train_data, validate_test_data; \
@@ -78,6 +88,13 @@ train-all: train-rf train-lgbm train-xgb train-cat
 
 train-kfold:
 	$(PYTHON) -m src.train --model cat --engineered --tune --folds 5
+
+# OOF Generation & Stacking
+oof-all:
+	$(PYTHON) -m src.oof_generator --model cat,xgb,lgbm --engineered --folds 5 --tune --n-trials 50
+
+stacking: oof-all
+	$(PYTHON) -m src.stacking --models cat,xgb,lgbm --meta lr
 
 # MLflow
 mlflow-ui:

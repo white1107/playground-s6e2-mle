@@ -10,7 +10,8 @@ from sklearn.pipeline import Pipeline
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.train import get_pipeline, get_feature_names, create_engineered_features
+from src.feature_engineering import add_domain_features
+from src.train import get_pipeline, get_feature_names
 
 
 class TestGetPipeline:
@@ -60,7 +61,7 @@ class TestPipelineWithEngineeredFeatures:
 
     def test_pipeline_with_engineered_features(self, sample_train_data):
         """Test pipeline works with engineered features."""
-        df = create_engineered_features(sample_train_data)
+        df = add_domain_features(sample_train_data)
         numerical, categorical = get_feature_names(use_engineered=True)
         X = df[numerical + categorical]
         y = df["Heart Disease"].map({"Presence": 1, "Absence": 0})

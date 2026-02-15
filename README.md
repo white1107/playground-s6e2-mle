@@ -1,6 +1,6 @@
 # Heart Disease Prediction - MLOps Pipeline
 
-[![CI](https://github.com/yourusername/heart-disease-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/heart-disease-prediction/actions/workflows/ci.yml)
+[![CI](https://github.com/white1107/playground-s6e2-mle/actions/workflows/ci.yml/badge.svg)](https://github.com/white1107/playground-s6e2-mle/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,40 +9,54 @@ Production-ready ML pipeline for Heart Disease Prediction from [Kaggle Playgroun
 
 ## Highlights
 
-- **Multiple Models**: Random Forest, LightGBM, XGBoost, CatBoost comparison
+- **Best Score**: **0.95395** AUC on Kaggle LB (CatBoost + engineered features)
+- **Multiple Models**: CatBoost, LightGBM, XGBoost, Random Forest + stacking ensemble
+- **18 Engineered Features**: Domain-knowledge features with schema validation
+- **Production API**: FastAPI with 4 endpoints, Pydantic validation, CORS
+- **79 Tests**: Comprehensive test suite (API, schema, features, pipeline, stacking)
 - **Experiment Tracking**: MLflow integration for reproducible experiments
 - **Automated CI/CD**: GitHub Actions with lint, type-check, and tests
-- **Production API**: FastAPI endpoint for model serving
-- **Best Score**: 0.9563 AUC (CatBoost with feature engineering)
 
 ## Project Structure
 
 ```
-heart-disease-prediction/
+playground-s6e2-mle/
 ├── src/
-│   ├── train.py              # Main training script with MLflow
-│   ├── train_baseline.py     # Baseline model (Random Forest)
-│   ├── ensemble.py           # Model ensembling
-│   ├── stacking.py           # Stacking ensemble
-│   ├── shap_analysis.py      # Model interpretability (SHAP)
-│   ├── correlation_analysis.py
+│   ├── train.py                 # Main training script with MLflow
+│   ├── train_baseline.py        # Baseline model (Random Forest)
+│   ├── feature_engineering.py   # 18 domain features + original stats
+│   ├── schema.py                # Pandera schemas (train/test/submission)
+│   ├── stacking.py              # Stacking ensemble with meta-learners
+│   ├── ensemble.py              # Model ensembling
+│   ├── oof_generator.py         # OOF prediction generator
+│   ├── multi_seed.py            # Multi-seed averaging
+│   ├── advanced_ensemble.py     # Advanced ensemble methods
+│   ├── target_encoding.py       # Target encoding features
+│   ├── knn_features.py          # KNN-based features
+│   ├── top1_pipeline.py         # Best single-model pipeline
+│   ├── shap_analysis.py         # SHAP interpretability
+│   ├── correlation_analysis.py  # Feature correlation analysis
 │   ├── api/
-│   │   └── main.py           # FastAPI prediction endpoint
+│   │   └── main.py              # FastAPI (4 endpoints)
 │   └── utils/
-│       └── mlflow_utils.py   # MLflow tracking utilities
+│       └── mlflow_utils.py      # MLflow tracking utilities
 ├── tests/
-│   ├── test_features.py      # Feature engineering tests
-│   └── test_pipeline.py      # Pipeline tests
-├── notebooks/
-│   └── 01_initial_eda.ipynb  # Exploratory Data Analysis
-├── data/                     # Dataset (not tracked)
+│   ├── conftest.py              # Shared fixtures
+│   ├── test_api.py              # API endpoint tests (18)
+│   ├── test_features.py         # Feature engineering tests (15)
+│   ├── test_pipeline.py         # Pipeline tests (9)
+│   ├── test_schema.py           # Schema validation tests (25)
+│   └── test_stacking.py         # Stacking ensemble tests (12)
+├── data/                        # Dataset (not tracked)
 ├── output/
-│   ├── models/               # Trained models
-│   └── submissions/          # Kaggle submissions
-├── .github/workflows/ci.yml  # CI/CD pipeline
-├── pyproject.toml            # Project configuration
-├── Makefile                  # Development commands
-├── Dockerfile                # Container configuration
+│   ├── models/                  # Trained models
+│   ├── predictions/             # OOF predictions
+│   └── submissions/             # Kaggle submissions
+├── .github/workflows/ci.yml     # CI/CD pipeline
+├── pyproject.toml               # Project configuration
+├── Makefile                     # Development commands
+├── Dockerfile                   # Container configuration
+├── FINDINGS.md                  # Experiment findings & analysis
 └── docker-compose.yml
 ```
 
@@ -52,13 +66,12 @@ heart-disease-prediction/
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/heart-disease-prediction.git
-cd heart-disease-prediction
+git clone https://github.com/white1107/playground-s6e2-mle.git
+cd playground-s6e2-mle
 
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
 
 # Install dependencies
 make install-dev
@@ -73,8 +86,8 @@ make train
 # Train specific model
 python -m src.train --model cat --engineered --tune --n-trials 50
 
-# Train with K-Fold cross-validation
-python -m src.train --model cat --engineered --tune --folds 5
+# Generate OOF predictions & stacking ensemble
+make stacking
 
 # Available models: rf, lgbm, xgb, cat
 ```
@@ -99,116 +112,125 @@ make docker-build
 make docker-run
 ```
 
-## MLOps Features
-
-### 1. Experiment Tracking (MLflow)
-
-All training runs are automatically logged to MLflow:
-
-- **Parameters**: model type, hyperparameters, feature engineering flags
-- **Metrics**: AUC score, CV scores per fold
-- **Artifacts**: trained models, feature importance
-
-```python
-from src.utils.mlflow_utils import MLflowTracker
-
-tracker = MLflowTracker(experiment_name="heart-disease")
-with tracker.start_run(run_name="catboost-v1"):
-    tracker.log_params({"learning_rate": 0.1, "depth": 6})
-    tracker.log_metrics({"auc": 0.95})
-```
-
-### 2. Code Quality
-
-```bash
-# Lint with ruff
-make lint
-
-# Format code
-make format
-
-# Type check with mypy
-make type-check
-
-# Run tests
-make test
-
-# Run tests with coverage
-make test-cov
-```
-
-### 3. CI/CD Pipeline
-
-GitHub Actions workflow includes:
-
-- **Lint & Format**: ruff check and format
-- **Type Check**: mypy static analysis
-- **Tests**: pytest with coverage
-- **Build**: Package build verification
-- **Docker**: Container build test
-
-### 4. Hyperparameter Tuning (Optuna)
-
-```bash
-# Run 100 trials of hyperparameter optimization
-python -m src.train --model cat --tune --n-trials 100
-```
-
 ## Model Performance
 
-| Model | Features | Tuning | CV AUC |
-|:------|:---------|:-------|:-------|
-| **CatBoost** | Engineered | 100 trials | **0.9554** |
-| XGBoost | Engineered | 100 trials | 0.9552 |
-| LightGBM | Engineered | 100 trials | 0.9552 |
-| Random Forest | Engineered | 100 trials | 0.9476 |
-| Baseline RF | Numeric only | Default | 0.8578 |
+| Model | Features | Tuning | CV AUC | LB Score |
+|:------|:---------|:-------|:-------|:---------|
+| **CatBoost** | Engineered | Optuna | **0.95549** | **0.95395** |
+| XGBoost | Engineered | Optuna | 0.95530 | 0.95351 |
+| CatBoost (raw 13) | Raw | 10-seed | 0.95537 | 0.95341 |
+| Blend (0.8 eng + 0.2 raw) | Mixed | - | 0.95557 | 0.95321 |
+| CatBoost (10-seed) | Engineered | Optuna | 0.95556 | 0.95292 |
+| RealMLP | Engineered | - | 0.95566 | 0.94639 |
+| Baseline RF | Numeric only | Default | - | 0.85498 |
 
-**Key Improvement**: Adding categorical features improved AUC by +10.5% (0.8578 → 0.9476)
+**Key Insight**: Single CatBoost with Optuna outperforms all complex ensembles on LB. Multi-seed averaging and stacking hurt due to model homogeneity (Spearman > 0.997).
 
 ## Feature Engineering
 
-### Base Features (13 total)
+### Base Features (13)
 
-**Numerical (6)**:
-- Age, BP, Cholesterol, Max HR, ST depression, Number of vessels fluro
+**Numerical (6)**: Age, BP, Cholesterol, Max HR, ST depression, Number of vessels fluro
 
-**Categorical (7)**:
-- Sex, Chest pain type, FBS over 120, EKG results, Exercise angina, Slope of ST, Thallium
+**Categorical (7)**: Sex, Chest pain type, FBS over 120, EKG results, Exercise angina, Slope of ST, Thallium
 
-### Engineered Features (7)
+### Engineered Features (18)
 
 | Feature | Formula | Description |
 |:--------|:--------|:------------|
-| Rate_Pressure_Product | BP × Max HR | Myocardial oxygen demand |
-| Electrical_Stress | ST depression × Slope of ST | Cardiac electrical stress |
-| Metabolic_Score | Sum of risk factors | Metabolic risk composite |
-| MaxHR_Rel_Age | Max HR / (220 - Age) | Heart rate reserve |
-| MaxHR_x_Age | Max HR × Age | Age-adjusted heart capacity |
-| BP_x_Cholesterol | BP × Cholesterol | Combined cardiovascular risk |
+| Rate_Pressure_Product | BP x Max HR | Myocardial oxygen demand |
+| Electrical_Stress | ST depression x Slope of ST | Cardiac electrical stress |
+| Metabolic_Score | Sum of risk factors | Metabolic risk composite (0-3) |
+| MaxHR_Rel_Age | Max HR / (220 - Age) | Heart rate reserve ratio |
+| MaxHR_x_Age | Max HR x Age | Age-adjusted heart capacity |
+| BP_x_Cholesterol | BP x Cholesterol | Combined cardiovascular risk |
 | Age_Bin | Age // 10 | Decade-based age grouping |
-
-## Model Interpretability
-
-SHAP analysis reveals top predictive features:
-
-1. **Max HR** - Most important predictor
-2. **Age** - Strong age-related risk
-3. **Chest pain type** - Symptom-based classification
-4. **Thallium** - Diagnostic test result
-
-![SHAP Importance](output/shap_importance_eng.png)
+| Cholesterol_per_Age | Cholesterol / Age | Cholesterol burden |
+| BP_per_Age | BP / Age | Hypertension severity |
+| HR_Deficit | (220 - Age) - Max HR | Heart rate deficit |
+| Exercise_Risk | Angina*2 + ST + slope flag | Exercise risk composite |
+| Vessel_Thallium | Vessels x Thallium | Diagnostic interaction |
+| Angina_ST | Angina x ST depression | Angina-ST interaction |
+| Cardiac_Risk | Framingham-inspired score | Composite risk (0-5) |
+| ST_per_HR | ST depression / Max HR | ST normalized by effort |
+| Typical_Angina | Chest pain type == 4 | Typical angina flag |
+| Has_Vessel | Vessels > 0 | Vessel involvement flag |
+| Thallium_Abnormal | Thallium != 3 | Abnormal thallium flag |
 
 ## API Usage
 
-```bash
-# Start server
-uvicorn src.api.main:app --reload
+### Endpoints
 
-# Make prediction
+| Method | Path | Description |
+|:-------|:-----|:------------|
+| `GET` | `/health` | Health check (status, model_loaded, version) |
+| `POST` | `/predict` | Single prediction with risk level |
+| `POST` | `/predict/batch` | Batch prediction with timing |
+| `GET` | `/model/info` | Model metadata and best scores |
+
+### Examples
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Single prediction
 curl -X POST "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
-  -d '{"Age": 63, "Sex": 1, "BP": 145, "Cholesterol": 233, ...}'
+  -d '{
+    "Age": 63, "Sex": 1, "Chest pain type": 4,
+    "BP": 145, "Cholesterol": 233, "FBS over 120": 1,
+    "EKG results": 0, "Max HR": 150, "Exercise angina": 0,
+    "ST depression": 2.3, "Slope of ST": 3,
+    "Number of vessels fluro": 0, "Thallium": 6
+  }'
+# → {"probability": 0.82, "prediction": 1, "risk_level": "High"}
+
+# Batch prediction
+curl -X POST "http://localhost:8000/predict/batch" \
+  -H "Content-Type: application/json" \
+  -d '[{"Age": 45, ...}, {"Age": 60, ...}]'
+# → {"predictions": [...], "count": 2, "processing_time_ms": 12.5}
+
+# Model info
+curl http://localhost:8000/model/info
+# → {"model_type": "CatBoost", "features": [...], "best_cv_auc": 0.95549, ...}
+```
+
+## Testing
+
+```bash
+# Run all tests (79 tests)
+make test
+
+# Run specific test suites
+make test-api        # API endpoint tests
+make test-stacking   # Stacking ensemble tests
+make test-schema     # Schema validation tests
+
+# Run with coverage
+make test-cov
+```
+
+## MLOps Features
+
+### CI/CD Pipeline
+
+GitHub Actions workflow includes:
+- **Lint & Format**: ruff check and format
+- **Type Check**: mypy static analysis
+- **Tests**: pytest with coverage (79 tests)
+- **Build**: Package build verification
+- **Docker**: Container build test
+
+### Data Validation (Pandera)
+
+Schemas for train/test/submission data with automatic type coercion and range checks.
+
+### Hyperparameter Tuning (Optuna)
+
+```bash
+python -m src.train --model cat --tune --n-trials 100
 ```
 
 ## Development
@@ -216,18 +238,17 @@ curl -X POST "http://localhost:8000/predict" \
 ### Pre-commit Hooks
 
 ```bash
-# Install hooks
 pre-commit install
-
-# Run manually
 pre-commit run --all-files
 ```
 
-### Adding New Models
+### Code Quality
 
-1. Add model initialization in `src/train.py:get_pipeline()`
-2. Add hyperparameter search space in `optimize_hyperparameters()`
-3. Add tests in `tests/test_pipeline.py`
+```bash
+make lint        # ruff check
+make format      # ruff format
+make type-check  # mypy
+```
 
 ## License
 

@@ -9,9 +9,11 @@ from src.schema import (
     TrainDataSchema,
     TestDataSchema,
     EngineeredFeaturesSchema,
+    SubmissionSchema,
     validate_train_data,
     validate_test_data,
     validate_engineered_features,
+    validate_submission,
     get_schema_summary,
 )
 
@@ -120,6 +122,17 @@ class TestEngineeredFeaturesSchema:
             "MaxHR_x_Age": [10000.0, 12000.0],
             "BP_x_Cholesterol": [30000.0, 40000.0],
             "Age_Bin": [5, 6],
+            "Cholesterol_per_Age": [4.5, 3.2],
+            "BP_per_Age": [2.5, 2.0],
+            "HR_Deficit": [30.0, 50.0],
+            "Exercise_Risk": [1.5, 5.0],
+            "Vessel_Thallium": [0.0, 14.0],
+            "Angina_ST": [0.0, 3.0],
+            "Cardiac_Risk": [2, 4],
+            "ST_per_HR": [0.01, 0.02],
+            "Typical_Angina": [1, 0],
+            "Has_Vessel": [0, 1],
+            "Thallium_Abnormal": [0, 1],
         })
 
         validated = EngineeredFeaturesSchema.validate(df)
@@ -156,6 +169,38 @@ class TestEngineeredFeaturesSchema:
             EngineeredFeaturesSchema.validate(df)
 
 
+class TestSubmissionSchema:
+    """Tests for submission schema."""
+
+    def test_valid_submission(self):
+        """Test that valid submission data passes validation."""
+        df = pd.DataFrame({
+            "id": [0, 1, 2],
+            "Heart Disease": [0.1, 0.5, 0.95],
+        })
+        validated = SubmissionSchema.validate(df)
+        assert len(validated) == 3
+
+    def test_probability_over_1_fails(self):
+        """Test that probability > 1 fails validation."""
+        df = pd.DataFrame({
+            "id": [0],
+            "Heart Disease": [1.5],
+        })
+        with pytest.raises(pa.errors.SchemaError):
+            SubmissionSchema.validate(df)
+
+    def test_validate_submission_function(self):
+        """Test validate_submission helper returns correct tuple."""
+        df = pd.DataFrame({
+            "id": [0, 1],
+            "Heart Disease": [0.3, 0.7],
+        })
+        is_valid, errors = validate_submission(df, raise_error=False)
+        assert is_valid is True
+        assert errors == []
+
+
 class TestValidationFunctions:
     """Tests for validation helper functions."""
 
@@ -187,6 +232,7 @@ class TestValidationFunctions:
         assert "train" in summary
         assert "test" in summary
         assert "engineered" in summary
+        assert "submission" in summary
 
         # Check train schema has expected columns
         assert "Age" in summary["train"]

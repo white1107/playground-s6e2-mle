@@ -88,6 +88,9 @@ kaggle.json
 .env.local
 .env.*.local
 
+# CatBoost
+catboost_info/
+
 # Secrets
 *.pem
 *.key

@@ -1,0 +1,16 @@
+{
+  "id": "saki205/s6e2-realmlp-v48-multiseed",
+  "title": "S6E2 RealMLP V48 MultiSeed",
+  "code_file": "script.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "competition_sources": [
+    "playground-series-s6e2"
+  ],
+  "dataset_sources": [
+    "rishidamarla/heart-disease-prediction"
+  ]
+}

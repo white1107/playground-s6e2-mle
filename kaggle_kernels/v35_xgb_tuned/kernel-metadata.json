@@ -1,0 +1,13 @@
+{
+  "id": "saki205/s6e2-v35-xgb-tuned-deotte",
+  "title": "S6E2 V35 XGB Tuned Deotte",
+  "code_file": "script.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "competition_sources": ["playground-series-s6e2"],
+  "dataset_sources": ["rishidamarla/heart-disease-prediction"],
+  "competition_data_sources": ["playground-series-s6e2"]
+}

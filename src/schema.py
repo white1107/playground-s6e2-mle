@@ -133,23 +133,49 @@ TestDataSchema = TrainDataSchema.remove_columns(["Heart Disease"])
 
 
 # =============================================================================
+# Submission Schema
+# =============================================================================
+
+SubmissionSchema = DataFrameSchema(
+    columns={
+        "id": Column(
+            int,
+            Check.greater_than_or_equal_to(0),
+            nullable=False,
+            description="Unique identifier matching test data",
+        ),
+        "Heart Disease": Column(
+            float,
+            Check.in_range(0, 1),
+            nullable=False,
+            coerce=True,
+            description="Predicted probability of heart disease (0-1)",
+        ),
+    },
+    strict=True,
+    coerce=True,
+)
+
+
+# =============================================================================
 # Schema for Engineered Features
 # =============================================================================
 
 EngineeredFeaturesSchema = DataFrameSchema(
     columns={
+        # --- Original 7 ---
         "Rate_Pressure_Product": Column(
             float,
             Check.greater_than_or_equal_to(0),
             nullable=True,
             coerce=True,
-            description="BP × Max HR (myocardial oxygen demand)",
+            description="BP x Max HR (myocardial oxygen demand)",
         ),
         "Electrical_Stress": Column(
             float,
             nullable=True,
             coerce=True,
-            description="ST depression × Slope of ST",
+            description="ST depression x Slope of ST",
         ),
         "Metabolic_Score": Column(
             int,
@@ -170,14 +196,14 @@ EngineeredFeaturesSchema = DataFrameSchema(
             Check.greater_than_or_equal_to(0),
             nullable=True,
             coerce=True,
-            description="Max HR × Age interaction",
+            description="Max HR x Age interaction",
         ),
         "BP_x_Cholesterol": Column(
             float,
             Check.greater_than_or_equal_to(0),
             nullable=True,
             coerce=True,
-            description="BP × Cholesterol interaction",
+            description="BP x Cholesterol interaction",
         ),
         "Age_Bin": Column(
             int,
@@ -185,6 +211,82 @@ EngineeredFeaturesSchema = DataFrameSchema(
             nullable=True,
             coerce=True,
             description="Age binned by decade",
+        ),
+        # --- New 11 ---
+        "Cholesterol_per_Age": Column(
+            float,
+            Check.greater_than_or_equal_to(0),
+            nullable=True,
+            coerce=True,
+            description="Cholesterol / Age",
+        ),
+        "BP_per_Age": Column(
+            float,
+            Check.greater_than_or_equal_to(0),
+            nullable=True,
+            coerce=True,
+            description="BP / Age",
+        ),
+        "HR_Deficit": Column(
+            float,
+            nullable=True,
+            coerce=True,
+            description="(220 - Age) - Max HR",
+        ),
+        "Exercise_Risk": Column(
+            float,
+            nullable=True,
+            coerce=True,
+            description="Angina*2 + ST depression + downsloping flag",
+        ),
+        "Vessel_Thallium": Column(
+            float,
+            Check.greater_than_or_equal_to(0),
+            nullable=True,
+            coerce=True,
+            description="Number of vessels x Thallium",
+        ),
+        "Angina_ST": Column(
+            float,
+            Check.greater_than_or_equal_to(0),
+            nullable=True,
+            coerce=True,
+            description="Exercise angina x ST depression",
+        ),
+        "Cardiac_Risk": Column(
+            int,
+            Check.in_range(0, 5),
+            nullable=True,
+            coerce=True,
+            description="Framingham-inspired composite risk (0-5)",
+        ),
+        "ST_per_HR": Column(
+            float,
+            Check.greater_than_or_equal_to(0),
+            nullable=True,
+            coerce=True,
+            description="ST depression / Max HR",
+        ),
+        "Typical_Angina": Column(
+            int,
+            Check.isin([0, 1]),
+            nullable=True,
+            coerce=True,
+            description="Chest pain type == 4 flag",
+        ),
+        "Has_Vessel": Column(
+            int,
+            Check.isin([0, 1]),
+            nullable=True,
+            coerce=True,
+            description="Any vessel involvement flag",
+        ),
+        "Thallium_Abnormal": Column(
+            int,
+            Check.isin([0, 1]),
+            nullable=True,
+            coerce=True,
+            description="Thallium != 3 (abnormal) flag",
         ),
     },
     strict=False,
@@ -259,6 +361,27 @@ def validate_engineered_features(df: pd.DataFrame, raise_error: bool = True) -> 
         return False, errors
 
 
+def validate_submission(df: pd.DataFrame, raise_error: bool = True) -> tuple[bool, list[str]]:
+    """Validate submission data against schema.
+
+    Args:
+        df: DataFrame to validate
+        raise_error: If True, raise SchemaError on failure
+
+    Returns:
+        Tuple of (is_valid, list of error messages)
+    """
+    errors = []
+    try:
+        SubmissionSchema.validate(df, lazy=True)
+        return True, []
+    except pa.errors.SchemaErrors as e:
+        errors = [str(err) for err in e.failure_cases.to_dict("records")]
+        if raise_error:
+            raise
+        return False, errors
+
+
 def get_schema_summary() -> dict:
     """Get a summary of all schema definitions.
 
@@ -279,6 +402,7 @@ def get_schema_summary() -> dict:
         "train": schema_to_dict(TrainDataSchema),
         "test": schema_to_dict(TestDataSchema),
         "engineered": schema_to_dict(EngineeredFeaturesSchema),
+        "submission": schema_to_dict(SubmissionSchema),
     }
 
 

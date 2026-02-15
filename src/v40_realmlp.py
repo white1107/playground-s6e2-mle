@@ -1,0 +1,178 @@
+"""V40: RealMLP with Original Dataset Statistics.
+
+Replicates the reference approach (LB 0.95394-0.95397):
+- RealMLP_TD_Classifier from pytabkit
+- Original dataset statistics (mean, median, std, skew, count)
+- ALL features converted to categorical
+- Exact hyperparameters from the top public notebook
+
+Usage:
+    python -m src.v40_realmlp
+"""
+
+import os
+import time
+import warnings
+
+import numpy as np
+import pandas as pd
+import torch
+from pytabkit import RealMLP_TD_Classifier
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
+
+warnings.filterwarnings("ignore")
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Exact hyperparameters from reference notebook
+PARAM_GRID = {
+    "device": DEVICE,
+    "random_state": 42,
+    "verbosity": 2,
+    "n_epochs": 100,
+    "batch_size": 256,
+    "n_ens": 8,
+    "use_early_stopping": True,
+    "early_stopping_additive_patience": 20,
+    "early_stopping_multiplicative_patience": 1,
+    "act": "mish",
+    "embedding_size": 8,
+    "first_layer_lr_factor": 0.5962121993798933,
+    "hidden_sizes": "rectangular",
+    "hidden_width": 384,
+    "lr": 0.04,
+    "ls_eps": 0.011498317194338772,
+    "ls_eps_sched": "coslog4",
+    "max_one_hot_cat_size": 18,
+    "n_hidden_layers": 4,
+    "p_drop": 0.07301419697186451,
+    "p_drop_sched": "flat_cos",
+    "plr_hidden_1": 16,
+    "plr_hidden_2": 8,
+    "plr_lr_factor": 0.1151437622270563,
+    "plr_sigma": 2.3316811282666916,
+    "scale_lr_factor": 2.244801835541429,
+    "sq_mom": 1.0 - 0.011834054955582318,
+    "wd": 0.02369230879235962,
+}
+
+N_FOLDS = 5
+SEED = 42
+
+
+def add_original_stats(df, original, base_features):
+    """Inject statistics from the original 270-row dataset."""
+    df_temp = df.copy()
+    for col in base_features:
+        if col in original.columns:
+            stats = (
+                original.groupby(col)["Heart Disease"]
+                .agg(["mean", "median", "std", "skew", "count"])
+                .reset_index()
+            )
+            stats.columns = [col] + [
+                f"orig_{col}_{s}" for s in ["mean", "median", "std", "skew", "count"]
+            ]
+            df_temp = df_temp.merge(stats, on=col, how="left")
+            fill_values = {
+                f"orig_{col}_mean": original["Heart Disease"].mean(),
+                f"orig_{col}_median": original["Heart Disease"].median(),
+                f"orig_{col}_std": 0,
+                f"orig_{col}_skew": 0,
+                f"orig_{col}_count": 0,
+            }
+            df_temp = df_temp.fillna(value=fill_values)
+    return df_temp
+
+
+def main():
+    print("=" * 60)
+    print(f"V40: RealMLP + Original Dataset Stats (device={DEVICE})")
+    print("=" * 60)
+    start = time.time()
+
+    # Load data
+    train = pd.read_csv("data/train.csv")
+    test = pd.read_csv("data/test.csv")
+    original = pd.read_csv("data/Heart_Disease_Prediction.csv")
+
+    print(f"Train: {train.shape}, Test: {test.shape}, Original: {original.shape}")
+
+    # Encode target
+    le = LabelEncoder()
+    train["Heart Disease"] = le.fit_transform(train["Heart Disease"])
+    original["Heart Disease"] = le.fit_transform(original["Heart Disease"])
+
+    # Feature engineering - inject original dataset statistics
+    base_features = [c for c in train.columns if c not in ["Heart Disease", "id"]]
+    train = add_original_stats(train, original, base_features)
+    test = add_original_stats(test, original, base_features)
+
+    X = train.drop(["id", "Heart Disease"], axis=1)
+    y = train["Heart Disease"]
+    X_test = test.drop(["id"], axis=1)
+
+    # Convert ALL features to categorical (critical for RealMLP)
+    print("Converting all features to categorical type...")
+    for col in X.columns:
+        X[col] = X[col].astype(str).astype("category")
+        X_test[col] = X_test[col].astype(str).astype("category")
+
+    print(f"Total features: {len(X.columns)}")
+
+    # Cross-validation
+    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
+    oof_preds = np.zeros(len(train))
+    test_preds = np.zeros(len(test))
+    fold_scores = []
+
+    print(f"\nStarting {N_FOLDS}-Fold CV...")
+
+    for fold, (tr_idx, va_idx) in enumerate(skf.split(X, y), 1):
+        print(f"\n--- Fold {fold} ---")
+
+        X_tr, X_val = X.iloc[tr_idx], X.iloc[va_idx]
+        y_tr, y_val = y.iloc[tr_idx], y.iloc[va_idx]
+
+        model = RealMLP_TD_Classifier(**PARAM_GRID)
+        model.fit(X_tr, y_tr.values, X_val, y_val.values)
+
+        val_probs = model.predict_proba(X_val)[:, 1]
+        fold_test_probs = model.predict_proba(X_test)[:, 1]
+
+        oof_preds[va_idx] = val_probs
+        test_preds += fold_test_probs / N_FOLDS
+
+        score = roc_auc_score(y_val, val_probs)
+        fold_scores.append(score)
+        print(f"Fold {fold} AUC: {score:.5f}")
+
+        if DEVICE == "cuda":
+            torch.cuda.empty_cache()
+
+    oof_auc = roc_auc_score(y, oof_preds)
+    print(f"\n{'=' * 40}")
+    print(f"Overall OOF AUC: {oof_auc:.5f}")
+    print(f"Mean Fold: {np.mean(fold_scores):.5f} (+/- {np.std(fold_scores):.5f})")
+    print(f"{'=' * 40}")
+
+    # Save
+    os.makedirs("output/predictions", exist_ok=True)
+    os.makedirs("output/submissions", exist_ok=True)
+
+    pd.DataFrame({"id": train["id"], "oof_pred": oof_preds}).to_csv(
+        "output/predictions/oof_v40_realmlp.csv", index=False
+    )
+    pd.DataFrame({"id": test["id"], "Heart Disease": test_preds}).to_csv(
+        "output/submissions/submission_v40_realmlp.csv", index=False
+    )
+
+    elapsed = (time.time() - start) / 60
+    print(f"Saved: submission_v40_realmlp.csv, oof_v40_realmlp.csv")
+    print(f"Total Time: {elapsed:.1f} min")
+
+
+if __name__ == "__main__":
+    main()
